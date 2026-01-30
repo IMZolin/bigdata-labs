@@ -1,0 +1,48 @@
+name: CD - Deploy and Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Create .env file
+        run: |
+          echo "CLICKHOUSE_HOST=clickhouse" > .env
+          echo "CLICKHOUSE_PORT=8123" >> .env
+          echo "CLICKHOUSE_USER=model_user" >> .env
+          echo "CLICKHOUSE_PASSWORD=strongpassword" >> .env
+          echo "CLICKHOUSE_DATABASE=mydb" >> .env
+      
+      - name: Pull Docker image from DockerHub
+        run: docker pull ${{ secrets.DOCKERHUB_USERNAME }}/big-data-2:latest
+      
+      - name: Start containers with docker compose
+        run: docker compose up -d
+
+      - name: Wait for API
+        run: |
+          for i in {1..10}; do
+            HEALTH_RESPONSE=$(curl -s http://localhost:8000/health || true)
+            if [[ "$HEALTH_RESPONSE" == *"OK"* ]]; then
+              echo "API is ready!"
+              break
+            fi
+            echo "Waiting..."
+            sleep 3
+          done
+          if [[ "$HEALTH_RESPONSE" != *"OK"* ]]; then
+            echo "API did not start"
+            exit 1
+          fi
+
+      - name: Run functional tests inside container
+        run: pytest tests/test_func_api.py -v -s
+
+      - name: Stop and remove container
+        run: docker compose down

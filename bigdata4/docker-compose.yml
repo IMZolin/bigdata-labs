@@ -1,0 +1,135 @@
+services:
+  vault:
+    image: hashicorp/vault:latest
+    container_name: vault-3
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault_data:/vault/data
+      - ./vault:/vault
+    environment:
+      - VAULT_ADDR=http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    command: sh -c "apk add --no-cache jq && /vault/start.sh"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "vault status && vault kv get secret/database/credentials"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - backend  
+  
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse-3
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    environment:
+      - CLICKHOUSE_DATABASE
+      - CLICKHOUSE_USER
+      - CLICKHOUSE_PASSWORD
+      - CLICKHOUSE_PORT
+      - CLICKHOUSE_HOST
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query='SELECT 1'"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend
+  
+  
+  kafka:
+    image: apache/kafka:3.9.1
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  web:
+    build: .
+    image: zolin17/big-data-4:latest
+    container_name: big-data-4
+    depends_on:
+      kafka:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+    command: bash -c "
+      python src/preprocess.py &&
+      python src/train.py &&
+      python src/app.py"
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    restart: on-failure
+    networks:
+      - backend
+
+  consumer:
+    image: zolin17/big-data-4:latest
+    container_name: big-data-consumer
+    depends_on:
+      - kafka
+      - clickhouse
+      - vault
+    command: sh -c "python src/kafka/consumer_service.py"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      - CLICKHOUSE_DATABASE=${CLICKHOUSE_DATABASE}
+      - CLICKHOUSE_HOST=${CLICKHOUSE_HOST}
+      - CLICKHOUSE_PORT=${CLICKHOUSE_PORT}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - VAULT_ADDR=${VAULT_ADDR}
+      - VAULT_TOKEN=${VAULT_TOKEN}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    restart: unless-stopped
+    networks:
+      - backend
+
+volumes:
+  clickhouse_data:
+  vault_data:
+
+networks:
+  backend:
+    driver: bridge

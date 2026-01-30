@@ -1,0 +1,51 @@
+name: CD - Deploy and Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Pull Docker image from DockerHub
+        run: docker pull ${{ secrets.DOCKERHUB_USERNAME }}/big-data-4:latest
+
+      - name: Create .env file
+        run: |
+          echo "CLICKHOUSE_HOST=${{ secrets.CLICKHOUSE_HOST }}" > .env
+          echo "CLICKHOUSE_PORT=${{ secrets.CLICKHOUSE_PORT }}" >> .env
+          echo "CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}" >> .env
+          echo "CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}" >> .env
+          echo "CLICKHOUSE_DATABASE=${{ secrets.CLICKHOUSE_DATABASE }}" >> .env
+          echo "KAFKA_BOOTSTRAP_SERVERS=${{ secrets.KAFKA_BOOTSTRAP_SERVERS || 'kafka:9092'}}" >> .env
+          echo "KAFKA_TOPIC=${{secrets.KAFKA_TOPIC}}" >> .env
+          echo "KAFKA_CONSUMER_GROUP=${{secrets.KAFKA_CONSUMER_GROUP}}" >> .env
+      
+      - name: Start containers with docker compose
+        run: docker-compose up --build -d
+
+      - name: Wait for API
+        run: |
+          for i in {1..10}; do
+            HEALTH_RESPONSE=$(curl -s http://localhost:8000/ready || true)
+            if [[ "$HEALTH_RESPONSE" == *"OK"* ]]; then
+              echo "API is ready!"
+              break
+            fi
+            echo "Waiting..."
+            sleep 3
+          done
+          if [[ "$HEALTH_RESPONSE" != *"OK"* ]]; then
+            echo "API did not start"
+            exit 1
+          fi
+
+      - name: Run functional tests inside container
+        run: pytest tests/test_func_api.py -v -s
+
+      - name: Stop and remove container
+        run: docker compose down

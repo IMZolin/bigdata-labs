@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    image: zolin17/big-data:latest
+    container_name: big-data
+    command: bash -c "
+      python src/preprocess.py &&
+      python src/train.py &&
+      python src/app.py"
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+
+  test:
+    image: zolin17/big-data:latest
+    command: bash -c "
+      python src/preprocess.py &&
+      python src/train.py &&
+      python src/predict.py -t func &&
+      coverage run -m unittest &&
+      coverage report -m"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app

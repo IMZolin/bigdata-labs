@@ -1,0 +1,4 @@
+[core]
+    remote = localremote
+['remote "localremote"']
+    url = /Users/ivanzolin/Documents/itmo-magistracy/big-data/dvc_remote

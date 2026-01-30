@@ -1,0 +1,3 @@
+alpha: 1.0
+fit_prior: true
+path: /Users/ivanzolin/Documents/itmo-magistracy/mle-bigdata/mle-lab1/experiments/NAIVE_BAYES_20250710_171737/naive_bayes.pkl

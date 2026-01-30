@@ -1,0 +1,19 @@
+{
+    "X": [
+      {
+        "0": "I love you guys so much that it hurts.",
+        "1": "I missed the first hour of SYTYCD last night, and I can't find it online!",
+        "2": "My new car was stolen... by my mother who wanted to go pose at church.",
+        "3": "Wondering why I feel like I do... I'll feel better though... It's all good! I'll be happy in spite of..."
+      }
+    ],
+    "y": [
+      {
+        "0": 1,
+        "1": 0,
+        "2": 0,
+        "3": 1
+      }
+    ]
+  }
+  

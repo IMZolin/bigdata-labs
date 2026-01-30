@@ -1,0 +1,9 @@
+score: '0.75'
+model_path: /app/experiments/NAIVE_BAYES_20250710_194045/naive_bayes.pkl
+test_path: test_0.json
+accuracy: 0.75
+classification_report: "              precision    recall  f1-score   support\n\n\
+  \           0       1.00      0.67      0.80         3\n           1       0.50\
+  \      1.00      0.67         1\n\n    accuracy                           0.75 \
+  \        4\n   macro avg       0.75      0.83      0.73         4\nweighted avg\
+  \       0.88      0.75      0.77         4\n"

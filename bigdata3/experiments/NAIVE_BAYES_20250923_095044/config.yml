@@ -1,0 +1,3 @@
+alpha: 1.0
+fit_prior: true
+path: experiments/NAIVE_BAYES_20250923_095044/naive_bayes.pkl

@@ -1,0 +1,39 @@
+name: CD - Deploy and Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      
+      - name: Pull Docker image from DockerHub
+        run: docker pull ${{ secrets.DOCKERHUB_USERNAME }}/big-data:latest
+      
+      - name: Run Docker container
+        run: |
+          docker run -d -p 8000:8000 --name big-data ${{ secrets.DOCKERHUB_USERNAME }}/big-data:latest
+          sleep 10
+
+      - name: Test inference endpoint
+        run: |
+          RESPONSE=$(curl -s -X POST "http://localhost:8000/predict/" \
+          -H "Content-Type: application/json" \
+          -d '{"message": "I love this product!"}')
+          
+          echo "Response: $RESPONSE"
+
+          # Check if response contains expected sentiment
+          if echo "$RESPONSE" | grep -q 'Positive sentiment\|Negative sentiment'; then
+            echo "Inference successful"
+          else
+            echo "Invalid response"
+            exit 1
+          fi
+
+      - name: Stop and remove container
+        run: docker stop big-data && docker rm big-data
